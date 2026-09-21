@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "id": "ribattrw.calm",
+  "name": "Calm",
+  "version": "1.0.0",
+  "author": "RibatTRW",
+  "license": "MIT",
+  "description": "Meditation and de-stress for Omarchy: one keypress starts a fullscreen paced-breathing session, curated CC0 soundscapes play locally, and gentle self-timed reminders nudge you only when you actually pause.",
+  "kinds": [
+    "bar-widget",
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "CalmOverlay.qml"
+  },
+  "barWidget": {
+    "displayName": "Calm",
+    "description": "One click starts a calm session. Shows session progress and a quiet dot once today is kept.",
+    "category": "Wellness",
+    "aliases": [
+      "calm",
+      "meditation",
+      "breathe",
+      "breathing",
+      "relax",
+      "de-stress",
+      "break",
+      "wellness"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "minutes": 3,
+      "sound": "rain",
+      "volume": 40,
+      "reminders": true,
+      "reminderMinutes": 50,
+      "dayStart": "09:00",
+      "dayEnd": "20:00"
+    },
+    "schema": [
+      {
+        "key": "minutes",
+        "type": "integer",
+        "label": "Session length (minutes)",
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 3
+      },
+      {
+        "key": "sound",
+        "type": "string",
+        "label": "Soundscape (rain, waves, forest, wind, fire, none)",
+        "defaultValue": "rain"
+      },
+      {
+        "key": "volume",
+        "type": "integer",
+        "label": "Soundscape volume (0-100)",
+        "min": 0,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 40
+      },
+      {
+        "key": "reminders",
+        "type": "boolean",
+        "label": "Gentle break reminders",
+        "defaultValue": true
+      },
+      {
+        "key": "reminderMinutes",
+        "type": "integer",
+        "label": "Reminder every N minutes",
+        "min": 10,
+        "max": 240,
+        "step": 5,
+        "defaultValue": 50
+      },
+      {
+        "key": "dayStart",
+        "type": "string",
+        "label": "First reminder from (HH:MM, local time)",
+        "defaultValue": "09:00"
+      },
+      {
+        "key": "dayEnd",
+        "type": "string",
+        "label": "Last reminder before (HH:MM, local time)",
+        "defaultValue": "20:00"
+      }
+    ]
+  }
+}
