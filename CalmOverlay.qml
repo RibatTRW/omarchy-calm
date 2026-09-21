@@ -106,10 +106,30 @@ Item {
   readonly property real stage: Math.max(120, Math.min(panel.width, panel.height) * 0.60)
   readonly property real circleMax: stage * 0.70
   readonly property real circleMin: circleMax * 0.44
+
+  // Where the breath actually is, straight off the wall clock.
+  readonly property real targetFullness: root.active ? root.breath.fullness : 0
+
+  // What the screen shows. A QML Timer is not synchronised to the display's
+  // refresh, so driving the geometry straight off it steps the disc once per
+  // tick and jitters whenever the tick phase drifts against the frame - that
+  // is the stutter you can see at 20 ticks a second. Handing the value to a
+  // Behavior instead lets the render loop re-aim it on every displayed frame,
+  // so the disc is repositioned on vsync no matter how coarse the clock is.
+  //
+  // Linear, and deliberately longer than the 50 ms tick: each retarget is one
+  // short straight segment between two points on the same cosine, and because
+  // the animation is still in flight when the next target lands it never
+  // settles and restarts from zero velocity - no per-tick hesitation.
+  property real shownFullness: root.targetFullness
+  Behavior on shownFullness {
+    NumberAnimation { duration: 80; easing.type: Easing.Linear }
+  }
+
   // Declared explicitly: without it the pacer disc binds to nothing and
   // renders at 0x0 - an invisible breathing visual.
   readonly property real circleSize:
-    circleMin + (circleMax - circleMin) * breath.fullness
+    circleMin + (circleMax - circleMin) * shownFullness
   readonly property var breath: root.active
     ? Model.breathAt((root.nowMs - root.startMs) / 1000)
     : { label: "", fullness: 0, secsLeft: 0 }
@@ -435,6 +455,10 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
     if (payload.fontFamily) root.fontFamily = String(payload.fontFamily)
 
+    // A session that has just ended is still fading out; a summon inside that
+    // window must cancel the pending hide or it would close the new session.
+    hideTimer.stop()
+
     // A keypress during a running session should not restart the clock.
     if (root.active) {
       root.opened = true
@@ -491,11 +515,23 @@ Item {
 
   function endSession(completed) {
     if (!root.active) return
+    // Everything that has to happen *now* - DND back, player stopped, state
+    // written, completion notice - happens in teardown, immediately. Only the
+    // picture lingers, so the session dissolves instead of snapping off the
+    // screen; hiding is deferred to hideTimer.
     teardown(completed)
-    hideSelf()
+    hideTimer.restart()
+  }
+
+  Timer {
+    id: hideTimer
+    interval: 750
+    repeat: false
+    onTriggered: root.hideSelf()
   }
 
   function hideSelf() {
+    hideTimer.stop()
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide(root.pluginId)
@@ -504,6 +540,7 @@ Item {
   // The host calls close() on hide; also the safety net if the plugin is
   // disabled mid-session, so DND and the player never get stranded.
   function close() {
+    hideTimer.stop()
     if (root.active) teardown(false)
     root.opened = false
   }
@@ -595,9 +632,17 @@ Item {
     // the widget can show live progress while the session runs.
     exclusionMode: ExclusionMode.Normal
 
+    // Fade rather than snap: the desktop comes back under a dissolve instead
+    // of one hard cut, and the first open eases in the same way. The opacity
+    // rides the render loop, so it is frame-paced even though the clock that
+    // flips `active` is not.
     Rectangle {
       anchors.fill: parent
       color: Color.menu.background
+      opacity: root.active ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: 700; easing.type: Easing.InOutQuad }
+      }
     }
 
     Item {
@@ -619,6 +664,10 @@ Item {
     Column {
       anchors.centerIn: parent
       spacing: Style.space(30)
+      opacity: root.active ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: 700; easing.type: Easing.InOutQuad }
+      }
 
       Item {
         width: root.stage
@@ -632,7 +681,19 @@ Item {
           // binding straight into onPaint would never fire again after the
           // first frame.
           property real progress: root.progress
-          onProgressChanged: requestPaint()
+          property int drawnArc: -1
+          // Repaint only when the arc has moved about a pixel. It sweeps some
+          // 2000 px over a whole session, so redrawing this canvas on every
+          // clock tick mostly re-rasterises sub-pixel changes for nothing -
+          // and once the step is one pixel wide the sweep is indistinguishable
+          // from a continuous one, while the canvas goes quiet in between.
+          onProgressChanged: {
+            var cc = width / 2
+            var lwq = Math.max(2, Style.space(3))
+            var rq = cc - lwq / 2 - Style.space(2)
+            var px = rq > 0 ? Math.round(progress * 2 * Math.PI * rq) : -1
+            if (px !== drawnArc) { drawnArc = px; requestPaint() }
+          }
           onVisibleChanged: if (visible) requestPaint()
           Component.onCompleted: requestPaint()
 
@@ -651,7 +712,7 @@ Item {
             ctx.arc(c, c, r, 0, Math.PI * 2)
             ctx.stroke()
 
-            var p = Math.max(0.001, Math.min(1, root.progress))
+            var p = Math.max(0.001, Math.min(1, progress))
             ctx.strokeStyle = Color.accent
             ctx.beginPath()
             ctx.arc(c, c, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p)
@@ -665,7 +726,7 @@ Item {
           height: root.circleSize
           radius: width / 2
           color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b,
-                         0.16 + 0.16 * root.breath.fullness)
+                         0.16 + 0.16 * root.shownFullness)
           border.color: Color.accent
           border.width: Math.max(1.5, Style.space(2))
         }

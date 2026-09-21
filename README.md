@@ -97,6 +97,36 @@ The bar widget shows live session progress as a filling ring, and **one quiet do
 
 Do-not-disturb is engaged for the duration of a session and your previous state is restored afterwards — before any completion notice, so you actually see it. If DND was already on when a session began, it is left alone.
 
+## Roadmap — recommended next improvements
+
+Not implemented yet; ordered by what the research and the shipped competitors
+suggest users actually feel.
+
+1. **Breathing pattern presets as a config key** — `pattern = calm | box | 478`.
+   Kalm ships seven techniques and Zen three; keeping it a *config* key rather
+   than an in-session menu preserves the zero-decision launch.
+2. **Completion cue and a soundscape fade** — a soft bell on completion
+   (Zen and Stretchly both do this) and a ~4 s fade-out of the loop instead of
+   it stopping dead when the session ends. Opt-in, off by default.
+3. **Wheel-to-change sound, and the sound name in the tooltip** — today
+   picking a soundscape needs `omarchy bar set`; a wheel step on the widget
+   would make the shipped loops discoverable without the CLI.
+4. **Weekday-aware quiet hours** — e.g. no heads-ups at weekends, in the spirit
+   of Stretchly's schedules. Today it is one window for every day.
+5. **Reduced-motion mode** — Kalm ships one. A `motion = full | reduced` key
+   holding the disc at a fixed size and filling the ring instead of scaling
+   would suit anyone the breathing motion bothers.
+6. **Cross-monitor sessions** — the widget already shows progress on every bar,
+   but the session surface only covers the focused output; spanning all of them
+   (Kalm shares state cross-monitor) would make the fullscreen claim literal.
+7. **Suspend-aware pause** — deadlines are absolute by design (spec: suspend
+   safety), so a session ends on wake. An opt-in `pauseOnSuspend` would hold it
+   open instead, leaving absolute deadlines the default.
+8. **A configurable pause threshold** — how long you must stop before a
+   heads-up starts the session is currently derived from Omarchy's own
+   `idle.screensaver`/`idle.lock` so it can never disagree with the compositor;
+   surfacing it as `reminderGraceSeconds` would let people tune it.
+
 ## Dependencies
 
 Everything is local and unprivileged. No network requests, no elevated privileges, no install hooks.

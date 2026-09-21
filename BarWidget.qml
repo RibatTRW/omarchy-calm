@@ -39,13 +39,14 @@ BarWidget {
     ? Model.progressOf(calmState.session.startedAt, calmState.session.endsAt, nowMs)
     : 0
 
-  // The bar keeps a slower clock than the breathing animation needs: the ring
-  // only has to move visibly, and a 1 s tick leaves it visually continuous
-  // over a multi-minute session.
+  // The bar keeps a far coarser clock than the breathing animation - the arc
+  // only has to sweep - and the Behavior below interpolates between these
+  // samples, so the sweep stays continuous at display frame rate instead of
+  // jumping once a second.
   Timer {
     running: root.sessionActive
     repeat: true
-    interval: 1000
+    interval: 500
     onTriggered: root.nowMs = Date.now()
   }
 
@@ -121,6 +122,13 @@ BarWidget {
           height: Style.space(14)
 
           property real p: root.progress
+          // Longer than the 500 ms sample interval and linear, so the arc is
+          // always still travelling towards the last sample when the next one
+          // arrives - it glides instead of stepping, and never restarts from
+          // rest mid-sweep.
+          Behavior on p {
+            NumberAnimation { duration: 550; easing.type: Easing.Linear }
+          }
           property bool running: root.sessionActive
           property color accent: Color.accent
           property color muted: Color.muted
