@@ -209,11 +209,15 @@ Item {
     ])
     onLoaded: {
       root.calmState = Model.parseState(text())
+      root.hintStateReady = true
       root.resumeAmbientOnce()
+      root.maybeKeybindHint()
     }
     onLoadFailed: {
       root.calmState = Model.emptyState()
+      root.hintStateReady = true
       root.resumeAmbientOnce()
+      root.maybeKeybindHint()
     }
   }
 
@@ -222,6 +226,51 @@ Item {
     if (root.ambientResumed) return
     root.ambientResumed = true
     if (root.calmState.ambient && !root.active) runAudio(root.cfg.sound)
+  }
+
+  // -----------------------------------------------------------------------
+  // One-time first-run hint for the Super+Alt+M keybind. The plugin cannot
+  // register the binding itself (no install hooks, no manifest field), so
+  // the README ships the exact line that adds it - and this fires exactly
+  // once, only while the user's bindings.lua has no Calm binding yet. Both
+  // inputs (state flag, binding present) must be read before deciding.
+  // -----------------------------------------------------------------------
+  property bool hintStateReady: false
+  property bool hintBindReady: false
+  property bool hintBindConfigured: false
+  property bool hintChecked: false
+
+  FileView {
+    id: keybindFile
+    path: root.home + "/.config/hypr/bindings.lua"
+    watchChanges: false
+    printErrors: false
+    onLoaded: {
+      root.hintBindConfigured = Model.mentionsPlugin(text())
+      root.hintBindReady = true
+      root.maybeKeybindHint()
+    }
+    onLoadFailed: {
+      // No bindings.lua at all: certainly no Calm binding yet.
+      root.hintBindConfigured = false
+      root.hintBindReady = true
+      root.maybeKeybindHint()
+    }
+  }
+
+  function maybeKeybindHint() {
+    if (root.hintChecked || !root.hintStateReady || !root.hintBindReady) return
+    root.hintChecked = true
+    if (root.calmState.keybindHint) return
+    if (!root.hintBindConfigured) {
+      Quickshell.execDetached(Model.noticeCommand(
+        root.omarchyPath,
+        "Calm: one line to add Super+Alt+M",
+        "Paste the single line from the Calm README (Keybinding) once - " +
+        "then Super+Alt+M starts a breathing session."))
+    }
+    // Mark done either way: once checked, never re-checked on later starts.
+    writeState(Model.withKeybindHint(root.calmState))
   }
 
   // -------------------------------------------------------------------------
@@ -750,6 +799,20 @@ Item {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: 26
+      text: Model.BREATHING_NOTE_TEXT
+      color: root.dim
+      font.family: "sans-serif"
+      font.pixelSize: Style.font.bodySmall
+      opacity: (root.active && Model.breathingNoteVisibleAt(root.nowMs - root.startMs)) ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: 1500; easing.type: Easing.InOutQuad }
       }
     }
   }
