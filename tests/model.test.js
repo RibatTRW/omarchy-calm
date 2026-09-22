@@ -13,8 +13,9 @@ const names = [
   'progressOf', 'breathAt', 'minutesOfDay', 'firstAllowedAtOrAfter',
   'inAllowedHours', 'nextDeadline', 'reminderGraceMs', 'parseState',
   'emptyState',
-  'keepDay', 'isKept', 'withSession', 'withAmbient', 'dayKey',
+  'keepDay', 'isKept', 'withSession', 'withAmbient', 'withKeybindHint', 'dayKey',
   'audioCommand', 'headsUpCommand', 'noticeCommand', 'stateJson',
+  'mentionsPlugin', 'keybindHintCommand',
   'clamp', 'soundLabel', 'AUDIO_SCRIPT'
 ];
 const mod = { exports: {} };
@@ -138,6 +139,35 @@ const hu = M.headsUpCommand('/omarchy', 'ribattrw.calm', 'H', 'B');
 ok('heads-up is low urgency', hu.indexOf('-u') >= 0 && hu[hu.indexOf('-u') + 1] === 'low', hu);
 ok('heads-up is clickable', hu.indexOf('--exec') >= 0 && hu[hu.indexOf('--exec') + 1] === '/omarchy/bin/omarchy-shell', hu);
 ok('heads-up has no skip button args', !/skip|dismiss|postpone/i.test(hu.join(' ')));
+
+// --- audible-by-default playback (bug: widget sessions were silent)
+ok('default volume is audible (cubic mpv volume law)', M.defaultConfig().volume === 70, M.defaultConfig().volume);
+ok('default sound always plays', M.defaultConfig().sound === 'rain');
+ok('volume 100 must not clip the argv', M.audioCommand('rain', 100, '/u', '/s')[5] === '100');
+
+// --- keybind hint state: one-time, carried by every state rebuilder
+ok('keybindHint defaults false', M.emptyState().keybindHint === false);
+ok('parseState carries keybindHint', M.parseState('{"keybindHint":true}').keybindHint === true);
+ok('parseState rejects non-boolean hint', M.parseState('{"keybindHint":"yes"}').keybindHint === false);
+const hinted = M.withKeybindHint(M.emptyState());
+ok('withKeybindHint sets flag', hinted.keybindHint === true);
+ok('withKeybindHint preserves days', M.isKept(M.withKeybindHint(M.keepDay(M.emptyState(), '2026-09-22')), '2026-09-22'));
+ok('keepDay preserves hint', M.keepDay(hinted, '2026-09-22').keybindHint === true);
+ok('withSession preserves hint', M.withSession(hinted, { startedAt: 1 }).keybindHint === true);
+ok('withAmbient preserves hint', M.withAmbient(hinted, true).keybindHint === true);
+ok('hint round-trips through the state file', M.parseState(M.stateJson(hinted)).keybindHint === true);
+
+// --- keybind discovery: README must ship the exact working one-liner
+ok('mentionsPlugin finds the binding line', M.mentionsPlugin('o.bind("SUPER + ALT + M", "x", [[omarchy-shell shell summon ribattrw.calm "{}"]])'));
+ok('mentionsPlugin false without binding', !M.mentionsPlugin('o.bind("SUPER + H", "x", "voxtype")'));
+ok('mentionsPlugin false on empty', !M.mentionsPlugin(''));
+const readme = fs.readFileSync(path.join(repo, 'README.md'), 'utf8');
+const hintLine = M.keybindHintCommand();
+ok('README ships the exact hint line', readme.indexOf(hintLine) >= 0, hintLine);
+ok('hint line is idempotent (guarded by grep)', /^grep -q/.test(hintLine) && /\|\| echo/.test(hintLine), hintLine);
+ok('hint line never uses single-quoted JSON payload', hintLine.indexOf("'{}'") < 0, hintLine);
+ok('README ships a matching removal line', readme.indexOf("sed -i '/ribattrw\\.calm/d' ~/.config/hypr/bindings.lua") >= 0);
+ok('README documents the default volume', readme.indexOf('volume 70') >= 0);
 
 console.log(fails === 0 ? '\nALL TESTS PASS' : '\n' + fails + ' FAILURE(S)');
 process.exit(fails ? 1 : 0);

@@ -39,18 +39,23 @@ rm -rf ~/.config/omarchy/calm
 
 ## Keybinding
 
-Calm does not bind any key on install — it only tells you the line to add.
+Calm cannot bind a key by itself — Omarchy plugins run **no install hooks**, so nothing you install can quietly edit your Hyprland config. The whole setup is this **one exact line**; paste it once:
 
-Add this to `~/.config/hypr/bindings.lua`:
+```bash
+grep -q 'ribattrw\.calm' ~/.config/hypr/bindings.lua 2>/dev/null || echo 'o.bind("SUPER + ALT + M", "Calm — breathing session", [[omarchy-shell shell summon ribattrw.calm "{}"]])' >> ~/.config/hypr/bindings.lua
+```
 
-```lua
-o.bind("SUPER + ALT + M", "Calm — breathing session",
-  [[omarchy-shell shell summon ribattrw.calm '{}']])
+Hyprland reloads its config when a sourced file changes, so the binding is live immediately — press `Super + Alt + M` and a session starts. Until the line is in place, Calm shows a **one-time notification** on first run pointing at it, so the setup is discoverable without the README. The line is idempotent: pasting it twice adds nothing.
+
+To remove the binding:
+
+```bash
+sed -i '/ribattrw\.calm/d' ~/.config/hypr/bindings.lua
 ```
 
 > **Why not `SUPER + SHIFT + M`?** That combination is already taken by Omarchy's default
 > **Music** binding (`default/hypr/bindings/applications.lua` → Spotify), so `SUPER + ALT + M`
-> is the closest free equivalent and keeps the same `M`.
+> is the closest free equivalent and keeps the same `M`. It is free in Omarchy's defaults.
 
 Pass options in the payload if you ever want them: `{"minutes":5,"sound":"waves"}`. Omit it and the session uses your saved settings.
 
@@ -61,7 +66,7 @@ Every setting lives in one place — the widget's entry in `~/.config/omarchy/sh
 ```bash
 omarchy bar set ribattrw.calm minutes 3          # session length, 1-60
 omarchy bar set ribattrw.calm sound rain         # rain | waves | forest | wind | fire | none
-omarchy bar set ribattrw.calm volume 40          # 0-100
+omarchy bar set ribattrw.calm volume 70          # 0-100
 omarchy bar set ribattrw.calm reminders true     # gentle break reminders
 omarchy bar set ribattrw.calm reminderMinutes 50 # cadence, 10-240
 omarchy bar set ribattrw.calm dayStart 09:00     # first reminder from
@@ -70,7 +75,7 @@ omarchy bar set ribattrw.calm dayEnd 20:00       # last reminder before
 
 ## Ambient audio
 
-Pick a sound with `omarchy bar set ribattrw.calm sound <name>`, then either start a session (the loop plays for the length of the session) or **middle-click the widget** to toggle the loop on its own while you work.
+Pick a sound with `omarchy bar set ribattrw.calm sound <name>`, then either start a session (the loop plays for the length of the session) or **middle-click the widget** to toggle the loop on its own while you work. All five bundled loops are loudness-matched to the same level, so switching sounds never jumps in volume.
 
 Your own files live in:
 

@@ -24,12 +24,14 @@ dot.
 | `CalmOverlay.qml` | session surface + reminder scheduler + sole audio owner; `keepLoaded: true` |
 | `BarWidget.qml` | bar widget (display + click handling only) |
 | `CalmModel.js` | pure helpers: breath math, schedule/deadline math, state, audio argv |
-| `assets/audio/*.ogg` | five bundled CC0 loops — see `CREDITS.md` |
+| `assets/audio/*.ogg` | five bundled CC0 loops, loudness-matched — see `CREDITS.md` |
+| `tools/verify-loops.py` | seam self-check for any loop re-encode |
 | `README.md`, `CREDITS.md`, `LICENSE` | marketplace-required root docs |
 | `CONTEXT.md` | this file |
 
 State lives in one file: `~/.local/state/omarchy/calm.json`
-(`days` booleans, current `session`, `ambient` flag). The overlay is its only
+(`days` booleans, current `session`, `ambient` flag, `keybindHint` one-time
+flag). The overlay is its only
 writer; the widget only reads it. Config lives only in the widget's inline
 entry in `~/.config/omarchy/shell.json`.
 
@@ -79,6 +81,26 @@ for its `bar-off` flag.
   `CalmModel.js`, restart the shell (`omarchy restart shell`) and re-verify.
   Never treat a live-looking reload as proof the code took effect.
 
+## Audio loudness (why the loops are re-mastered and volume defaults to 70)
+
+- The five loops in `assets/audio/` are **loudness-matched to ≈ −16 LUFS**
+  with peaks ≤ −1.5 dBFS. Source field recordings arrive anywhere between
+  −24 and −42 LUFS; shipped un-mastered they were inaudible (the original
+  bug report: widget sessions played no sound).
+- The re-master must preserve the loop seam: use **static gain + a
+  memoryless curve** (ffmpeg `volume=<g>dB,asoftclip=type=tanh:threshold=…`)
+  and re-check with `tools/verify-loops.py <dir>` (self-calibrating seam
+  check; `--self-test` proves it has teeth). Never use a time-varying
+  limiter/normaliser on a loop — its state does not survive the wrap.
+- **mpv's `--volume` on this stack costs the cube of its percent in
+  amplitude** (measured through the exact shipped command line: 100 → 0 dB,
+  80 → −5.8, 60 → −13.3, 40 → −23.8 at the monitor tap; `pw-play` is linear
+  over the same path, so the cubic is mpv-side). The old default of 40
+  therefore buried even a −16 LUFS master ~35 dB below audibility; the
+  default is now **70** (`defaultConfig`, `manifest.json`, README). Any
+  future loudness work must re-measure the end-to-end tap
+  (`parec … .monitor` during a live session), not just file loudness.
+
 ## Keybinding
 
 Recommended and documented in `README.md`: **`SUPER + ALT + M`**.
@@ -86,6 +108,22 @@ Recommended and documented in `README.md`: **`SUPER + ALT + M`**.
 binding (Spotify) in Omarchy's `default/hypr/bindings/applications.lua`, and
 `SUPER + ALT + M` is free there. The plugin never edits the user's Hyprland
 config itself.
+
+**There is no plugin mechanism that can register a Hyprland binding.**
+Verified facts: `omarchy plugin add` runs nothing from the plugin — no
+install hooks exist (`manual/32-shell-plugins.md` states this outright), the
+manifest schema validated by `shell/services/PluginRegistry.qml` has no
+keybind field, and `luotao.zen`, the shipped exemplar, documents its binding
+the same way. So v1.1 ships **shape B**: the README's instruction is one
+exact idempotent copy-paste line (`grep -q … || echo 'o.bind(…)' >>
+~/.config/hypr/bindings.lua`, held in `CalmModel.keybindHintCommand()` and
+asserted against the README by the tests), plus a **one-time in-plugin
+hint**: on first shell start the overlay checks `bindings.lua` for
+`ribattrw.calm` and, if absent, sends one notification pointing at the line
+and sets `keybindHint` in the state file so it never fires again. Do not
+ "fix" this with a runtime `hyprctl keyword bind` injection: it is lost on
+the next config reload, invisible to the documented config, and silently
+diverges from what the user's files say.
 
 ## Marketplace submission notes (for whoever files it)
 

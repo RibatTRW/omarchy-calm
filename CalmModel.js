@@ -61,7 +61,13 @@ function defaultConfig() {
   return {
     minutes: DEFAULT_MINUTES,
     sound: "rain",
-    volume: 40,
+    // 70, not 40: on the shipped stack mpv's --volume costs the cube of
+    // its percent in amplitude (measured: 100 -> 0 dB, 80 -> -5.8 dB,
+    // 60 -> -13.3 dB, 40 -> -23.8 dB at the sink), so the old 40 buried
+    // even a -16 LUFS master about 35 dB below audibility. The loops are
+    // loudness-matched to ~-16 LUFS (see CREDITS.md); 70 lands them at a
+    // clearly audible but calm level with headroom to 100.
+    volume: 70,
     reminders: true,
     reminderMinutes: 50,
     dayStart: "09:00",
@@ -242,7 +248,7 @@ function reminderGraceMs(cfg) {
 //   ambient  - whether the standalone soundscape loop is meant to be playing.
 // ---------------------------------------------------------------------------
 function emptyState() {
-  return { days: {}, session: null, ambient: false, sound: "" }
+  return { days: {}, session: null, ambient: false, sound: "", keybindHint: false }
 }
 
 function parseState(raw) {
@@ -257,7 +263,8 @@ function parseState(raw) {
     days: (parsed.days && typeof parsed.days === "object") ? parsed.days : {},
     session: (parsed.session && typeof parsed.session === "object") ? parsed.session : null,
     ambient: parsed.ambient === true,
-    sound: typeof parsed.sound === "string" ? parsed.sound : ""
+    sound: typeof parsed.sound === "string" ? parsed.sound : "",
+    keybindHint: parsed.keybindHint === true
   }
 }
 
@@ -284,7 +291,8 @@ function keepDay(state, key) {
     days: days,
     session: state.session,
     ambient: state.ambient,
-    sound: state.sound
+    sound: state.sound,
+    keybindHint: state.keybindHint === true
   }
 }
 
@@ -293,7 +301,8 @@ function withSession(state, session) {
     days: state.days,
     session: session,
     ambient: state.ambient,
-    sound: state.sound
+    sound: state.sound,
+    keybindHint: state.keybindHint === true
   }
 }
 
@@ -302,7 +311,18 @@ function withAmbient(state, ambient, sound) {
     days: state.days,
     session: state.session,
     ambient: !!ambient,
-    sound: sound === undefined ? state.sound : String(sound)
+    sound: sound === undefined ? state.sound : String(sound),
+    keybindHint: state.keybindHint === true
+  }
+}
+
+function withKeybindHint(state) {
+  return {
+    days: state.days,
+    session: state.session,
+    ambient: state.ambient,
+    sound: state.sound,
+    keybindHint: true
   }
 }
 
@@ -351,6 +371,26 @@ function audioCommand(sound, volume, userAudioDir, shippedAudioDir) {
     String(sound), String(clamp(volume, 0, 100)),
     String(userAudioDir), String(shippedAudioDir)
   ]
+}
+
+// ---------------------------------------------------------------------------
+// Keybind discovery. A third-party plugin has no way to register a Hyprland
+// binding: `omarchy plugin add` runs nothing from the plugin (no install
+// hooks), and the manifest schema has no keybind field. So the README ships
+// the one exact line that adds it, and the overlay shows this hint once -
+// only while no Calm binding exists yet - so the setup is discoverable.
+// ---------------------------------------------------------------------------
+function mentionsPlugin(bindingsText) {
+  return String(bindingsText || "").indexOf("ribattrw.calm") >= 0
+}
+
+function keybindHintCommand() {
+  return [
+    "grep -q 'ribattrw\\.calm' ~/.config/hypr/bindings.lua 2>/dev/null || " +
+    "echo 'o.bind(\"SUPER + ALT + M\", \"Calm — breathing session\", " +
+    "[[omarchy-shell shell summon ribattrw.calm \"{}\"]])' " +
+    ">> ~/.config/hypr/bindings.lua"
+  ].join("")
 }
 
 // ---------------------------------------------------------------------------

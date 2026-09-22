@@ -24,9 +24,17 @@ CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
 Each source recording was cut to a fixed window and given a **seamless loop
 point**: the tail of the window is equal-power crossfaded into its head, so
 the last sample and the first sample are consecutive samples of the original
-recording and the loop has no click, gap, or level step. Output is Ogg Vorbis
-at 48 kHz. Durations are 60 s (rain, waves, forest), 32 s (wind) and 31 s
-(fire); total shipped audio is 2.7 MB.
+recording and the loop has no click, gap, or level step. Each loop is then
+**loudness-matched to about −16 LUFS** with a static gain and a memoryless
+soft ceiling (tanh), which preserves that loop point exactly — check any
+re-encode with `tools/verify-loops.py`. Output is Ogg Vorbis at
+48 kHz. Durations are 60 s (rain, waves, forest), 32 s (wind) and 31 s
+(fire); total shipped audio is 3.5 MB.
+
+The matching matters: the source recordings arrive at wildly different
+levels (−24 to −42 LUFS), and quiet field recordings at a 40 % playback
+volume are simply inaudible. The loudness pass is what makes a widget click
+produce audible sound with no setup.
 
 The looping itself is done at playback by `mpv --loop-file=inf`, which was
 measured to be gapless on this stack.
