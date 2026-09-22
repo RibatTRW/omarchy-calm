@@ -254,6 +254,7 @@ function reminderGraceMs(cfg) {
 //              totals; the bar only ever asks whether *today* is kept.
 //   session  - absolute start/end ms while a session runs, else null.
 //   ambient  - whether the standalone soundscape loop is meant to be playing.
+//   keybindHint - one-time Super+Alt+M setup hint already shown, never re-fired.
 // ---------------------------------------------------------------------------
 function emptyState() {
   return { days: {}, session: null, ambient: false, sound: "", keybindHint: false }
