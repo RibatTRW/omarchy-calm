@@ -410,6 +410,7 @@ function audioCommand(sound, volume, userAudioDir, shippedAudioDir, clientName) 
 // percent becomes percent/100 here and nothing else.
 var CUE_SCRIPT = [
   'n="$1"; v="$2"; ud="$3"; sd="$4"',
+  'LC_NUMERIC=C; export LC_NUMERIC',
   'command -v pw-play >/dev/null 2>&1 || exit 0',
   'try() {',
   '  [ -f "$1" ] || return 1',

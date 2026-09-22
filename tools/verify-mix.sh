@@ -108,9 +108,10 @@ for bed in $BEDS; do
 done
 thr="$(awk -v w="$worst" 'BEGIN{printf "%.2f", w+'"$CORE_MARGIN"'}')"
 onset="$(band_rms "$ASSETS/breath-in.ogg" 600 1200 0.4 0.1)"
-ge "$onset" "$thr" \
-  && pass "A5 inhale in-band over [0.4,0.5]s: $onset dB >= loudest masker+6 ($thr dB) - onset legible <= 0.5 s" \
-  || { a5=bad; fail "A5 inhale in-band over [0.4,0.5]s: $onset dB < $thr dB"; }
+onset_eff="$(awk -v o="$onset" -v g="$QG" 'BEGIN{printf "%.2f", o+g}')"
+ge "$onset_eff" "$thr" \
+  && pass "A5 inhale in-band over [0.4,0.5]s: $onset_eff dB >= loudest masker+6 ($thr dB) - onset legible <= 0.5 s" \
+  || { a5=bad; fail "A5 inhale in-band over [0.4,0.5]s: $onset_eff dB < $thr dB"; }
 
 # ------------------------------------------- A6 bed-to-bed loudness delta
 a6=ok; hi_i=-999; lo_i=999

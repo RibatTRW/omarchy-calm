@@ -154,7 +154,7 @@ Item {
       root.scheduleKey = key
       resetSchedule()
     }
-    if (root.active) runAudio(root.cfg.sound)
+    if (root.active || root.calmState.ambient) runAudio(root.cfg.sound)
     // Cues disabled mid-session: stop the one in flight, too.
     if (!next.breathCues && cueProc.running) cueProc.running = false
   }
