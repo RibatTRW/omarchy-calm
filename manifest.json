@@ -34,7 +34,11 @@
     "defaults": {
       "minutes": 3,
       "sound": "rain",
-      "volume": 70,
+      "volume": 40,
+      "cicadas": true,
+      "cicadaVolume": 30,
+      "breathCues": true,
+      "breathVolume": 20,
       "reminders": true,
       "reminderMinutes": 50,
       "dayStart": "09:00",
@@ -63,7 +67,37 @@
         "min": 0,
         "max": 100,
         "step": 5,
-        "defaultValue": 70
+        "defaultValue": 40
+      },
+      {
+        "key": "cicadas",
+        "type": "boolean",
+        "label": "Cicada ambience layer (with the soundscape)",
+        "defaultValue": true
+      },
+      {
+        "key": "cicadaVolume",
+        "type": "integer",
+        "label": "Cicada layer volume (0-100)",
+        "min": 0,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 30
+      },
+      {
+        "key": "breathCues",
+        "type": "boolean",
+        "label": "Breath in/out sound cues",
+        "defaultValue": true
+      },
+      {
+        "key": "breathVolume",
+        "type": "integer",
+        "label": "Breath cue volume (0-100)",
+        "min": 0,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 20
       },
       {
         "key": "reminders",

@@ -53,6 +53,10 @@ var CONFIG_SCHEMA = {
   minutes: "int",
   sound: "str",
   volume: "int",
+  cicadas: "bool",
+  cicadaVolume: "int",
+  breathCues: "bool",
+  breathVolume: "int",
   reminders: "bool",
   reminderMinutes: "int",
   dayStart: "str",
@@ -63,13 +67,23 @@ function defaultConfig() {
   return {
     minutes: DEFAULT_MINUTES,
     sound: "rain",
-    // 70, not 40: on the shipped stack mpv's --volume costs the cube of
-    // its percent in amplitude (measured: 100 -> 0 dB, 80 -> -5.8 dB,
-    // 60 -> -13.3 dB, 40 -> -23.8 dB at the sink), so the old 40 buried
-    // even a -16 LUFS master about 35 dB below audibility. The loops are
-    // loudness-matched to ~-16 LUFS (see CREDITS.md); 70 lands them at a
-    // clearly audible but calm level with headroom to 100.
-    volume: 70,
+    // The mix ships at the commissioned audio-science level table: every
+    // bundled asset is loudness-normalised to -36 LUFS at build time, so the
+    // knobs are exact again. Knob laws differ, measured on this stack:
+    //   mpv     --volume  is CUBIC: gain_dB = 60*log10(v/100), 40 -> -23.9 dB
+    //   pw-play --volume  is LINEAR: gain_dB = 20*log10(v/100), 20 -> -14.0 dB
+    // At these defaults: bed ~ -60 LUFS at the sink (system volume sets the
+    // listening level, aim 40-55 dBA - see README), cicada layer bed-7.5 dB
+    // (a soft background), breath cues bed+9.9 dB with >= +7.7 dB in-band
+    // over the worst soundscape masker.
+    volume: 40,
+    // Cicadas ride along with the chosen soundscape (captain's default: on,
+    // as a softer background layer); sound=none always stays full silence.
+    cicadas: true,
+    cicadaVolume: 30,
+    // Breath in/out cues pace the 4s-in/6s-out pacer during sessions.
+    breathCues: true,
+    breathVolume: 20,
     reminders: true,
     reminderMinutes: 50,
     dayStart: "09:00",
@@ -98,6 +112,8 @@ function applyConfig(cfg, entry) {
 function normaliseConfig(cfg) {
   cfg.minutes = Math.round(clamp(cfg.minutes, 1, 60))
   cfg.volume = Math.round(clamp(cfg.volume, 0, 100))
+  cfg.cicadaVolume = Math.round(clamp(cfg.cicadaVolume, 0, 100))
+  cfg.breathVolume = Math.round(clamp(cfg.breathVolume, 0, 100))
   cfg.reminderMinutes = Math.round(clamp(cfg.reminderMinutes, 10, 240))
   if (minutesOfDay(cfg.dayStart) < 0) cfg.dayStart = "09:00"
   if (minutesOfDay(cfg.dayEnd) < 0) cfg.dayEnd = "20:00"
@@ -359,12 +375,12 @@ function stateJson(state) {
 // exists in the user's folder is simply their own sound.
 // ---------------------------------------------------------------------------
 var AUDIO_SCRIPT = [
-  'n="$1"; v="$2"; ud="$3"; sd="$4"',
+  'n="$1"; v="$2"; ud="$3"; sd="$4"; cn="$5"',
   'command -v mpv >/dev/null 2>&1 || exit 0',
   'try() {',
   '  [ -f "$1" ] || return 1',
   '  exec mpv --no-config --load-scripts=no --no-video --really-quiet \\',
-  '    --loop-file=inf --audio-client-name=omarchy-calm --volume="$v" "$1"',
+  '    --loop-file=inf --audio-client-name="$cn" --volume="$v" "$1"',
   '}',
   'for c in "$ud/$n" "$ud/$n.ogg" "$ud/$n.oga" "$ud/$n.opus" \\',
   '         "$ud/$n.mp3" "$ud/$n.wav" "$ud/$n.flac" "$ud/$n.m4a" \\',
@@ -374,10 +390,43 @@ var AUDIO_SCRIPT = [
   'exit 0'
 ].join("\n")
 
-function audioCommand(sound, volume, userAudioDir, shippedAudioDir) {
+function audioCommand(sound, volume, userAudioDir, shippedAudioDir, clientName) {
   return [
     "sh", "-c", AUDIO_SCRIPT, "calm-audio",
     String(sound), String(clamp(volume, 0, 100)),
+    String(userAudioDir), String(shippedAudioDir),
+    // Named layers stay addressable in wpctl (omarchy-calm vs
+    // omarchy-calm-cicadas); default keeps the base soundscape's name.
+    String(clientName || "omarchy-calm")
+  ]
+}
+
+// Breath cue playback: pw-play, fire-and-forget, one owned process in the
+// overlay so teardown can kill an in-flight cue. pw-play start latency is
+// ~13 ms (measured), which is what keeps the cue inside the ~63 ms timing
+// budget (50 ms tick + player start) against the pacer's phase edge.
+// pw-play --volume is LINEAR 0.0-1.0 (PipeWire SPA_PROP_volume: 0.0 silence,
+// 1.0 no attenuation) - unlike mpv's cubic --volume - so the config's 0-100
+// percent becomes percent/100 here and nothing else.
+var CUE_SCRIPT = [
+  'n="$1"; v="$2"; ud="$3"; sd="$4"',
+  'command -v pw-play >/dev/null 2>&1 || exit 0',
+  'try() {',
+  '  [ -f "$1" ] || return 1',
+  '  exec pw-play --volume="$v" "$1"',
+  '}',
+  'for c in "$ud/$n" "$ud/$n.ogg" "$ud/$n.oga" "$ud/$n.opus" \\',
+  '         "$ud/$n.mp3" "$ud/$n.wav" "$ud/$n.flac" "$ud/$n.m4a" \\',
+  '         "$sd/$n" "$sd/$n.ogg"; do',
+  '  try "$c" || true',
+  'done',
+  'exit 0'
+].join("\n")
+
+function cueCommand(name, breathVolume, userAudioDir, shippedAudioDir) {
+  return [
+    "sh", "-c", CUE_SCRIPT, "calm-cue",
+    String(name), String(clamp(breathVolume, 0, 100) / 100),
     String(userAudioDir), String(shippedAudioDir)
   ]
 }

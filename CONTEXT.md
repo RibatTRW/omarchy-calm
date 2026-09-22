@@ -24,8 +24,9 @@ dot.
 | `CalmOverlay.qml` | session surface + reminder scheduler + sole audio owner; `keepLoaded: true` |
 | `BarWidget.qml` | bar widget (display + click handling only) |
 | `CalmModel.js` | pure helpers: breath math, schedule/deadline math, state, audio argv |
-| `assets/audio/*.ogg` | five bundled CC0 loops, loudness-matched — see `CREDITS.md` |
+| `assets/audio/*.ogg` | eight bundled CC0 files (five soundscapes + cicada loop + two breath cues), all −36 LUFS — see `CREDITS.md` |
 | `tools/verify-loops.py` | seam self-check for any loop re-encode |
+| `tools/verify-mix.sh` | acceptance checks A1-A10 for the loudness/mix spec |
 | `README.md`, `CREDITS.md`, `LICENSE` | marketplace-required root docs |
 | `CONTEXT.md` | this file |
 
@@ -81,25 +82,40 @@ for its `bar-off` flag.
   `CalmModel.js`, restart the shell (`omarchy restart shell`) and re-verify.
   Never treat a live-looking reload as proof the code took effect.
 
-## Audio loudness (why the loops are re-mastered and volume defaults to 70)
+## Audio loudness (three layers, build-time normalised mix)
 
-- The five loops in `assets/audio/` are **loudness-matched to ≈ −16 LUFS**
-  with peaks ≤ −1.5 dBFS. Source field recordings arrive anywhere between
-  −24 and −42 LUFS; shipped un-mastered they were inaudible (the original
-  bug report: widget sessions played no sound).
-- The re-master must preserve the loop seam: use **static gain + a
-  memoryless curve** (ffmpeg `volume=<g>dB,asoftclip=type=tanh:threshold=…`)
-  and re-check with `tools/verify-loops.py <dir>` (self-calibrating seam
-  check; `--self-test` proves it has teeth). Never use a time-varying
-  limiter/normaliser on a loop — its state does not survive the wrap.
-- **mpv's `--volume` on this stack costs the cube of its percent in
-  amplitude** (measured through the exact shipped command line: 100 → 0 dB,
-  80 → −5.8, 60 → −13.3, 40 → −23.8 at the monitor tap; `pw-play` is linear
-  over the same path, so the cubic is mpv-side). The old default of 40
-  therefore buried even a −16 LUFS master ~35 dB below audibility; the
-  default is now **70** (`defaultConfig`, `manifest.json`, README). Any
-  future loudness work must re-measure the end-to-end tap
-  (`parec … .monitor` during a live session), not just file loudness.
+Every shipped file in `assets/audio/` — five soundscapes, the cicada loop,
+and the two breath cues — is **loudness-normalised to −36 LUFS integrated,
+TP ≤ −1 dBTP** (two-pass EBU R128 measurement applied as one static gain).
+−36 LUFS is the mean of the five original beds; the target and the level
+table behind every volume default come from the commissioned
+audio-science report (2026-09-22). Normalisation is what makes the knobs
+mean what they say — the shipped files previously spanned 18.5 LU.
+
+- **Loop seams must survive any re-master**: static gain only on loops, and
+  re-check with `tools/verify-loops.py <dir>` (self-calibrating seam check;
+  `--self-test` proves it has teeth; one-shot `breath-*` cues are skipped —
+  they never loop). Never use a time-varying limiter/normaliser on a loop —
+  its state does not survive the wrap.
+- **Knob laws, measured — do not “fix” either**: mpv `--volume` is
+  *cubic* (gain_dB = 60·log₁₀(v/100): 40 → −23.9 dB, 100 → 0 dB); pw-play
+  `--volume` is *linear* 0.0–1.0 (gain_dB = 20·log₁₀(v/100): 20 → −14 dB).
+  The defaults are mixed against those laws: `volume 40` (bed ≈ −60 LUFS at
+  the sink; system volume sets the listening level — README says 40–55 dBA),
+  `cicadaVolume 30` (bed −7.5 dB, a soft background), `breathVolume 20`
+  (bed +9.9 dB, ≥ +7.7 dB in-band over the worst soundscape at defaults).
+  The earlier −16 LUFS remaster + `volume 70` was superseded by this spec:
+  at −36 LUFS assets a 70 knob would leave the breath cues under the bed.
+- **Runtime layering** (no runtime EQ, no graph processing, no ducking):
+  `CalmOverlay` owns `audioProc` (soundscape) and `cicadaProc` (cicadas,
+  `--audio-client-name=omarchy-calm-cicadas`, only while cicadas on AND
+  sound ≠ none), plus one owned `cueProc` (`pw-play`, ~13 ms start) fired on
+  the `breathAt` label edge of the 50 ms session tick (~63 ms worst-case
+  timing budget). PipeWire sums the streams. `sound=none` stays full silence;
+  cues never run outside a session.
+- Any future loudness work must re-measure the end-to-end tap
+  (`parec … .monitor` during a live session), not just file loudness, and
+  re-run `tools/verify-mix.sh` (the audio-science report's A1-A10 checks).
 
 ## Keybinding
 
