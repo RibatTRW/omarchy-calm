@@ -42,7 +42,7 @@ rm -rf ~/.config/omarchy/calm
 Calm cannot bind a key by itself — Omarchy plugins run **no install hooks**, so nothing you install can quietly edit your Hyprland config. The whole setup is this **one exact line**; paste it once:
 
 ```bash
-grep -q 'ribattrw\.calm' ~/.config/hypr/bindings.lua 2>/dev/null || echo 'o.bind("SUPER + ALT + M", "Calm — breathing session", [[omarchy-shell shell summon ribattrw.calm "{}"]])' >> ~/.config/hypr/bindings.lua
+sed 's/--.*//' ~/.config/hypr/bindings.lua 2>/dev/null | grep -q 'o\.bind.*ribattrw\.calm' || echo 'o.bind("SUPER + ALT + M", "Calm — breathing session", [[omarchy-shell shell summon ribattrw.calm "{}"]])' >> ~/.config/hypr/bindings.lua
 ```
 
 Hyprland reloads its config when a sourced file changes, so the binding is live immediately — press `Super + Alt + M` and a session starts. Until the line is in place, Calm shows a **one-time notification** on first run pointing at it, so the setup is discoverable without the README. The line is idempotent: pasting it twice adds nothing.

@@ -801,5 +801,19 @@ Item {
         font.pixelSize: Style.font.bodySmall
       }
     }
+
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: 26
+      text: Model.BREATHING_NOTE_TEXT
+      color: root.dim
+      font.family: "sans-serif"
+      font.pixelSize: Style.font.bodySmall
+      opacity: (root.active && Model.breathingNoteVisibleAt(root.nowMs - root.startMs)) ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: 1500; easing.type: Easing.InOutQuad }
+      }
+    }
   }
 }

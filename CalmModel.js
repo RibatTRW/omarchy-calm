@@ -15,6 +15,8 @@ var INHALE_SECS = 4
 var EXHALE_SECS = 6
 var CYCLE_SECS = INHALE_SECS + EXHALE_SECS
 var DEFAULT_MINUTES = 3
+var BREATHING_NOTE_TEXT = "breathe in through your nose - out through pursed lips"
+var BREATHING_NOTE_VISIBLE_MS = 20000
 
 // Bundled soundscapes. Every one is CC0 - see CREDITS.md.
 var SOUNDS = ["rain", "waves", "forest", "wind", "fire"]
@@ -173,6 +175,12 @@ function breathAt(t) {
     secsLeft: Math.max(1, Math.ceil(CYCLE_SECS - into)),
     fullness: 0.5 + 0.5 * Math.cos(Math.PI * y)
   }
+}
+
+function breathingNoteVisibleAt(elapsedMs) {
+  var n = Number(elapsedMs)
+  if (!isFinite(n) || n < 0) return false
+  return n < BREATHING_NOTE_VISIBLE_MS
 }
 
 // ---------------------------------------------------------------------------
@@ -381,12 +389,18 @@ function audioCommand(sound, volume, userAudioDir, shippedAudioDir) {
 // only while no Calm binding exists yet - so the setup is discoverable.
 // ---------------------------------------------------------------------------
 function mentionsPlugin(bindingsText) {
-  return String(bindingsText || "").indexOf("ribattrw.calm") >= 0
+  var lines = String(bindingsText || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var code = lines[i].split("--")[0]
+    if (code.indexOf("o.bind") >= 0 && code.indexOf("ribattrw.calm") >= 0) return true
+  }
+  return false
 }
 
 function keybindHintCommand() {
   return [
-    "grep -q 'ribattrw\\.calm' ~/.config/hypr/bindings.lua 2>/dev/null || " +
+    "sed 's/--.*//' ~/.config/hypr/bindings.lua 2>/dev/null | " +
+    "grep -q 'o\\.bind.*ribattrw\\.calm' || " +
     "echo 'o.bind(\"SUPER + ALT + M\", \"Calm — breathing session\", " +
     "[[omarchy-shell shell summon ribattrw.calm \"{}\"]])' " +
     ">> ~/.config/hypr/bindings.lua"

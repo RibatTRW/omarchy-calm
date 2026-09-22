@@ -15,7 +15,8 @@ const names = [
   'emptyState',
   'keepDay', 'isKept', 'withSession', 'withAmbient', 'withKeybindHint', 'dayKey',
   'audioCommand', 'headsUpCommand', 'noticeCommand', 'stateJson',
-  'mentionsPlugin', 'keybindHintCommand',
+  'mentionsPlugin', 'keybindHintCommand', 'breathingNoteVisibleAt',
+  'BREATHING_NOTE_TEXT', 'BREATHING_NOTE_VISIBLE_MS',
   'clamp', 'soundLabel', 'AUDIO_SCRIPT'
 ];
 const mod = { exports: {} };
@@ -161,10 +162,26 @@ ok('hint round-trips through the state file', M.parseState(M.stateJson(hinted)).
 ok('mentionsPlugin finds the binding line', M.mentionsPlugin('o.bind("SUPER + ALT + M", "x", [[omarchy-shell shell summon ribattrw.calm "{}"]])'));
 ok('mentionsPlugin false without binding', !M.mentionsPlugin('o.bind("SUPER + H", "x", "voxtype")'));
 ok('mentionsPlugin false on empty', !M.mentionsPlugin(''));
+ok('mentionsPlugin ignores a bare comment', !M.mentionsPlugin('-- tried ribattrw.calm, removed'));
+ok('mentionsPlugin ignores a commented-out bind', !M.mentionsPlugin('-- o.bind("SUPER + ALT + M", "x", [[omarchy-shell shell summon ribattrw.calm "{}"]])'));
+ok('mentionsPlugin ignores bind text after a comment', !M.mentionsPlugin('x = 1 -- o.bind ribattrw.calm'));
+ok('mentionsPlugin keeps an active bind with a trailing comment', M.mentionsPlugin('o.bind("SUPER + ALT + M", "x", [[omarchy-shell shell summon ribattrw.calm "{}"]]) -- added'));
+ok('mentionsPlugin needs o.bind, not just the id', !M.mentionsPlugin('ribattrw.calm'));
+
+// --- breathing note: quiet line, visible from session start, gone after ~20 s
+ok('note text is pursed-lip breathing', M.BREATHING_NOTE_TEXT === 'breathe in through your nose - out through pursed lips', M.BREATHING_NOTE_TEXT);
+ok('note window is about 20 s', M.BREATHING_NOTE_VISIBLE_MS === 20000, M.BREATHING_NOTE_VISIBLE_MS);
+ok('note visible at session start', M.breathingNoteVisibleAt(0) === true);
+ok('note still visible mid-window', M.breathingNoteVisibleAt(19999) === true);
+ok('note gone at the window edge', M.breathingNoteVisibleAt(20000) === false);
+ok('note stays gone for the rest of the session', M.breathingNoteVisibleAt(60000) === false);
+ok('note hidden for bad elapsed', M.breathingNoteVisibleAt(-1) === false && M.breathingNoteVisibleAt(NaN) === false);
 const readme = fs.readFileSync(path.join(repo, 'README.md'), 'utf8');
 const hintLine = M.keybindHintCommand();
 ok('README ships the exact hint line', readme.indexOf(hintLine) >= 0, hintLine);
-ok('hint line is idempotent (guarded by grep)', /^grep -q/.test(hintLine) && /\|\| echo/.test(hintLine), hintLine);
+ok('hint line is idempotent (guarded by grep)', /grep -q/.test(hintLine) && /\|\| echo/.test(hintLine), hintLine);
+ok('hint guard ignores Lua comments', hintLine.indexOf("s/--.*//") >= 0, hintLine);
+ok('hint guard requires an active bind', hintLine.indexOf('o\\.bind') >= 0, hintLine);
 ok('hint line never uses single-quoted JSON payload', hintLine.indexOf("'{}'") < 0, hintLine);
 ok('README ships a matching removal line', readme.indexOf("sed -i '/ribattrw\\.calm/d' ~/.config/hypr/bindings.lua") >= 0);
 ok('README documents the default volume', readme.indexOf('volume 70') >= 0);
