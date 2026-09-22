@@ -162,7 +162,7 @@ Everything is local and unprivileged. No network requests, no elevated privilege
 
 ## Credits
 
-The bundled soundscapes are CC0 recordings; every source, author, and licence page is listed in [CREDITS.md](CREDITS.md). No AI-generated audio is included.
+The bundled audio is CC0; every source, author, and licence page is listed in [CREDITS.md](CREDITS.md). No AI-generated audio is included.
 
 ## License
 

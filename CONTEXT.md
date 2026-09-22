@@ -148,7 +148,7 @@ diverges from what the user's files say.
 - Request the still-missing **`wellness` tag** under "Suggest a missing tag" —
   three earlier submissions (#93, #819, #3894) asked for it and it still does
   not exist. Suggested category: `Other`.
-- Document external dependencies (README has the table): `mpv`, plus
+- Document external dependencies (README has the table): `mpv` + `pw-play`, plus
   first-party `omarchy-shell` / `omarchy-notification-send`.
 - Every update needs a `[Verify]` issue against the exact 40-char SHA;
   snapshots show `Unverified` until re-checked.

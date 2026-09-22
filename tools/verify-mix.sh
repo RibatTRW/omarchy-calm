@@ -99,7 +99,6 @@ done
 # -------------------------------------- A5 inhale onset legibility <= 0.5 s
 # Threshold: loudest in-band masker at defaults + CORE_MARGIN. The inhale's
 # in-band level in a 100 ms window ending at t=0.5 s must already clear it.
-a5=ok
 worst=-999
 for bed in $BEDS; do
   bl="$(band_rms "$ASSETS/$bed.ogg" 600 1200)"
@@ -111,10 +110,10 @@ onset="$(band_rms "$ASSETS/breath-in.ogg" 600 1200 0.4 0.1)"
 onset_eff="$(awk -v o="$onset" -v g="$QG" 'BEGIN{printf "%.2f", o+g}')"
 ge "$onset_eff" "$thr" \
   && pass "A5 inhale in-band over [0.4,0.5]s: $onset_eff dB >= loudest masker+6 ($thr dB) - onset legible <= 0.5 s" \
-  || { a5=bad; fail "A5 inhale in-band over [0.4,0.5]s: $onset_eff dB < $thr dB"; }
+  || { fail "A5 inhale in-band over [0.4,0.5]s: $onset_eff dB < $thr dB"; }
 
 # ------------------------------------------- A6 bed-to-bed loudness delta
-a6=ok; hi_i=-999; lo_i=999
+hi_i=-999; lo_i=999
 for bed in $BEDS; do
   i="$(i_of "$ASSETS/$bed.ogg")"
   hi_i="$(awk -v a="$hi_i" -v b="$i" 'BEGIN{print (b>a)?b:a}')"
@@ -123,7 +122,7 @@ done
 delta="$(awk -v h="$hi_i" -v l="$lo_i" 'BEGIN{printf "%.2f", h-l}')"
 approx "$delta" 0 "$TOL" \
   && pass "A6 bed-to-bed loudness delta ${delta} dB <= ${TOL} dB (was 18.5 LU)" \
-  || { a6=bad; fail "A6 bed-to-bed delta $delta dB > $TOL dB"; }
+  || { fail "A6 bed-to-bed delta $delta dB > $TOL dB"; }
 
 # ------------------------------------------------------- A7 seams + lengths
 a7=ok
