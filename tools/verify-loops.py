@@ -20,6 +20,9 @@ i.e. an unremarkable moment in that recording.
 
 `--self-test` proves the check has teeth by injecting an artificial 16 dB step
 at the loop point, which must then be rejected.
+
+One-shot files are excluded: `breath-*.ogg` are played once per breath phase
+(matched to the 4 s / 6 s pacer), never looped, so they have no loop point.
 """
 import argparse
 import glob
@@ -99,7 +102,10 @@ def main():
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()
 
-    rows = [check(p) for p in sorted(glob.glob(a.dir + "/*.ogg"))]
+    # Loops only: breath-*.ogg are one-shot cues (no loop point by design).
+    loops = [p for p in sorted(glob.glob(a.dir + "/*.ogg"))
+             if not os.path.basename(p).startswith("breath-")]
+    rows = [check(p) for p in loops]
     if not rows:
         print("no loops found in", a.dir)
         return 1

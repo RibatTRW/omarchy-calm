@@ -154,7 +154,9 @@ Item {
       root.scheduleKey = key
       resetSchedule()
     }
-    if (root.active) runAudio(root.cfg.sound)
+    if (root.active || root.calmState.ambient) runAudio(root.cfg.sound)
+    // Cues disabled mid-session: stop the one in flight, too.
+    if (!next.breathCues && cueProc.running) cueProc.running = false
   }
 
   function resetSchedule() {
@@ -274,11 +276,32 @@ Item {
   }
 
   // -------------------------------------------------------------------------
-  // Audio. This component is the sole owner of the player, so a session and
+  // Audio. This component is the sole owner of the players, so a session and
   // the standalone soundscape can never fight over two competing processes.
+  //
+  // `baseLayerOn` is the single layer-activity gate: the cicada layer and the
+  // breath cues only ever run while a soundscape loop is meant to be playing
+  // (sound=none stays full silence) and cues only while a session is active.
   // -------------------------------------------------------------------------
+  property bool baseLayerOn: false
+
   function stopAudio() {
+    root.baseLayerOn = false
     if (audioProc.running) audioProc.running = false
+    if (cicadaProc.running) cicadaProc.running = false
+  }
+
+  function runLayer(proc, cmd) {
+    if (proc.running) {
+      proc.running = false
+      Qt.callLater(function() {
+        proc.command = cmd
+        proc.running = true
+      })
+    } else {
+      proc.command = cmd
+      proc.running = true
+    }
   }
 
   function runAudio(sound) {
@@ -286,21 +309,37 @@ Item {
       stopAudio()
       return
     }
-    var cmd = Model.audioCommand(
-      sound, root.cfg.volume, root.userAudioDir, root.shippedAudioDir)
-    if (audioProc.running) {
-      audioProc.running = false
-      Qt.callLater(function() {
-        audioProc.command = cmd
-        audioProc.running = true
-      })
-    } else {
-      audioProc.command = cmd
-      audioProc.running = true
+    root.baseLayerOn = true
+    runLayer(audioProc, Model.audioCommand(
+      sound, root.cfg.volume, root.userAudioDir, root.shippedAudioDir))
+    // Second mpv for the cicada ambience layer: same script, same single-
+    // owner lifecycle, its own gain (cicadaVolume) and client name so the two
+    // streams stay separately addressable in wpctl. Only when cicadas are on
+    // AND a soundscape is playing - never as a standalone sound.
+    if (root.cfg.cicadas) {
+      runLayer(cicadaProc, Model.audioCommand(
+        "cicada", root.cfg.cicadaVolume, root.userAudioDir, root.shippedAudioDir,
+        "omarchy-calm-cicadas"))
+    } else if (cicadaProc.running) {
+      cicadaProc.running = false
     }
   }
 
   Process { id: audioProc }
+  Process { id: cicadaProc }
+
+  // Breath cues: one owned pw-play process (not execDetached) so an in-flight
+  // cue dies with teardown. `lastCueLabel` edge-detects the pacer label so a
+  // cue fires exactly on the phase transition - never at open mid-phase, and
+  // never twice for one phase.
+  property string lastCueLabel: ""
+  Process { id: cueProc }
+
+  function fireBreathCue(label) {
+    runLayer(cueProc, Model.cueCommand(
+      label === "Breathe in" ? "breath-in" : "breath-out",
+      root.cfg.breathVolume, root.userAudioDir, root.shippedAudioDir))
+  }
 
   function toggleAmbient() {
     if (root.active) return
@@ -538,6 +577,8 @@ Item {
 
     engageDnd()
     runAudio(sound)
+    // First cue lands on the first phase *transition*, never mid-phase at open.
+    root.lastCueLabel = ""
     sessionTick.restart()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -550,6 +591,8 @@ Item {
     // DND goes back before any completion notice, or the notification we just
     // fire is one nobody will ever see.
     releaseDnd()
+    if (cueProc.running) cueProc.running = false
+    root.lastCueLabel = ""
     stopAudio()
     if (root.calmState.ambient) runAudio(root.cfg.sound)
 
@@ -602,6 +645,18 @@ Item {
     onTriggered: {
       root.nowMs = Date.now()
       if (root.active && root.nowMs >= root.endMs) root.endSession(true)
+      // Breath cue fires on the breathAt label edge: same 50 ms tick as the
+      // visual, so audio and pacer share one clock. Budget: <=50 ms tick
+      // quantisation + ~13 ms pw-play start = ~63 ms worst case on the
+      // 4000/6000 ms cycle. Gated on breathCues AND the layer-activity gate
+      // (sound=none = silence; no cues outside a session - teardown flips
+      // active off first, and endSession above already did if time ran out).
+      if (root.active && root.cfg.breathCues && root.baseLayerOn) {
+        var lb = root.breath.label
+        if (root.lastCueLabel !== "" && lb !== root.lastCueLabel)
+          root.fireBreathCue(lb)
+        root.lastCueLabel = lb
+      }
     }
   }
 
@@ -807,9 +862,14 @@ Item {
       anchors.bottom: parent.bottom
       anchors.bottomMargin: 26
       text: Model.BREATHING_NOTE_TEXT
-      color: root.dim
+      // Legibility fix (captain: "i cant read it"): was 11 px in muted
+      // (#4b4e55 on #101315 ~= 2:1 contrast) - unreadable at sitting
+      // distance. Now the palette's display size (24 px at base-size 12) in
+      // the foreground text colour (~11:1 contrast). Still the bottom-edge
+      // line, still clears after 20 s, still below the eyes' focus area.
+      color: root.foreground
       font.family: "sans-serif"
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: Style.font.display
       opacity: (root.active && Model.breathingNoteVisibleAt(root.nowMs - root.startMs)) ? 1 : 0
       Behavior on opacity {
         NumberAnimation { duration: 1500; easing.type: Easing.InOutQuad }

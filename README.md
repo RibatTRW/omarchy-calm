@@ -4,8 +4,8 @@ Meditation and de-stress for [Omarchy](https://omarchy.org), built for near-zero
 
 Plugin id: `ribattrw.calm`
 
-- **Breathing sessions** — a minimal fullscreen session with a paced visual, **3 minutes by default, no setup screen and no decisions after launch**. The breath runs 4 s in / 6 s out, which makes every whole-minute length a whole number of breaths, so a session always ends on a completed exhale. `Esc` ends it early and it still counts.
-- **Ambient audio** — five seamless CC0 soundscapes shipped in the repo (`rain`, `waves`, `forest`, `wind`, `fire`), played locally with `mpv`. Nothing streams, nothing is fetched. Your own files can override or extend them.
+- **Breathing sessions** — a minimal fullscreen session with a paced visual, **3 minutes by default, no setup screen and no decisions after launch**. The breath runs 4 s in / 6 s out, which makes every whole-minute length a whole number of breaths, so a session always ends on a completed exhale. Soft synthesized breath in/out cues pace each phase, on by default. `Esc` ends it early and it still counts.
+- **Ambient audio** — five seamless CC0 soundscapes plus a CC0 cicada layer shipped in the repo (`rain`, `waves`, `forest`, `wind`, `fire`, cicadas), played locally with `mpv`. Nothing streams, nothing is fetched. Your own files can override or extend them.
 - **Break reminders** — a quiet low-urgency heads-up on a fixed interval (every 50 minutes, 09:00–20:00 local by default). **There is no skip button and no postpone button.** The session starts only when you actually pause, or when you choose to click the notice. If you are already away, it does not nudge at all.
 
 Plus a compact bar widget that coexists with everything else in your bar: one click starts a session, the same ring shows live session progress, and a single quiet dot appears once today is kept.
@@ -66,16 +66,33 @@ Every setting lives in one place — the widget's entry in `~/.config/omarchy/sh
 ```bash
 omarchy bar set ribattrw.calm minutes 3          # session length, 1-60
 omarchy bar set ribattrw.calm sound rain         # rain | waves | forest | wind | fire | none
-omarchy bar set ribattrw.calm volume 70          # 0-100
+omarchy bar set ribattrw.calm volume 40          # 0-100 (soundscape bed)
+omarchy bar set ribattrw.calm cicadas true       # cicada ambience layer, with the soundscape
+omarchy bar set ribattrw.calm cicadaVolume 30    # 0-100
+omarchy bar set ribattrw.calm breathCues true    # breath in/out cues during sessions
+omarchy bar set ribattrw.calm breathVolume 20    # 0-100
 omarchy bar set ribattrw.calm reminders true     # gentle break reminders
 omarchy bar set ribattrw.calm reminderMinutes 50 # cadence, 10-240
 omarchy bar set ribattrw.calm dayStart 09:00     # first reminder from
 omarchy bar set ribattrw.calm dayEnd 20:00       # last reminder before
 ```
 
+Every shipped file is loudness-normalised to −36 LUFS at build time, so these
+knobs mean the same thing for every track. The layers also use two different
+gain laws (measured): the two `mpv` loops are cubic (60·log₁₀ of percent) and
+the `pw-play` breath cues are linear (20·log₁₀), which is why the defaults are
+mixed the way they are — at these defaults the cues stay clearly audible over
+both the soundscape and the cicadas, and the cicadas sit a soft ~7 dB under
+the bed. Set your **system volume** so the soundscape lands around **40–55
+dBA** — a soft-rain level; the plugin itself stays quiet by design.
+
 ## Ambient audio
 
-Pick a sound with `omarchy bar set ribattrw.calm sound <name>`, then either start a session (the loop plays for the length of the session) or **middle-click the widget** to toggle the loop on its own while you work. All five bundled loops are loudness-matched to the same level, so switching sounds never jumps in volume.
+Pick a sound with `omarchy bar set ribattrw.calm sound <name>`, then either start a session (the loop plays for the length of the session) or **middle-click the widget** to toggle the loop on its own while you work. All bundled loops are loudness-matched, so switching sounds never jumps in volume. The **cicada layer** (default on) plays as a soft background alongside whichever soundscape you pick — same rules, same on/off: `omarchy bar set ribattrw.calm cicadas false` turns it off, `cicadaVolume` sets its level. `sound none` keeps everything silent, cicadas included.
+
+Breath cues only run inside a session, on the pacer's own clock: a soft 4 s
+inhale whoosh as the disc grows, a 6 s exhale whoosh as it settles. Turn them
+off with `breathCues false`, or tune them with `breathVolume`.
 
 Your own files live in:
 
@@ -138,13 +155,14 @@ Everything is local and unprivileged. No network requests, no elevated privilege
 
 | Dependency | Why | Present on Omarchy? |
 |---|---|---|
-| `mpv` | loops the local audio file gaplessly | yes — `omarchy-base` package |
+| `mpv` | loops the local audio files (soundscape + cicada layer) gaplessly | yes — `omarchy-base` package |
+| `pw-play` | plays the breath in/out cues (~13 ms start) | yes — ships with PipeWire |
 | `omarchy-shell`, `omarchy-notification-send` | IPC and quiet notices | yes — first-party |
-| PipeWire stack | audio output | yes — first-party |
+| PipeWire stack | mixes the layers and audio output | yes — first-party |
 
 ## Credits
 
-The bundled soundscapes are CC0 recordings; every source, author, and licence page is listed in [CREDITS.md](CREDITS.md). No AI-generated audio is included.
+The bundled audio is CC0; every source, author, and licence page is listed in [CREDITS.md](CREDITS.md). No AI-generated audio is included.
 
 ## License
 

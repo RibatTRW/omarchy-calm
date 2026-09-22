@@ -9,12 +9,13 @@ const src = fs.readFileSync(path.join(repo, 'CalmModel.js'), 'utf8')
 
 const names = [
   'INHALE_SECS', 'EXHALE_SECS', 'CYCLE_SECS', 'DEFAULT_MINUTES', 'SOUNDS',
+  'CONFIG_SCHEMA',
   'defaultConfig', 'configFromShell', 'normaliseConfig', 'sessionEndMs',
   'progressOf', 'breathAt', 'minutesOfDay', 'firstAllowedAtOrAfter',
   'inAllowedHours', 'nextDeadline', 'reminderGraceMs', 'parseState',
   'emptyState',
   'keepDay', 'isKept', 'withSession', 'withAmbient', 'withKeybindHint', 'dayKey',
-  'audioCommand', 'headsUpCommand', 'noticeCommand', 'stateJson',
+  'audioCommand', 'cueCommand', 'CUE_SCRIPT', 'headsUpCommand', 'noticeCommand', 'stateJson',
   'mentionsPlugin', 'keybindHintCommand', 'breathingNoteVisibleAt',
   'BREATHING_NOTE_TEXT', 'BREATHING_NOTE_VISIBLE_MS',
   'clamp', 'soundLabel', 'AUDIO_SCRIPT'
@@ -74,13 +75,17 @@ ok('reversed window falls back to always on', M.inAllowedHours(t08, '20:00', '09
 const shellCfg = JSON.stringify({
   version: 1,
   idle: { screensaver: 120, lock: 300 },
-  bar: { layout: { left: [{ id: 'omarchy.menu' }], right: [{ id: 'ribattrw.calm', minutes: 7, sound: 'waves', volume: 55, reminders: false, reminderMinutes: 25, dayStart: '10:00', dayEnd: '18:30' }] } },
+  bar: { layout: { left: [{ id: 'omarchy.menu' }], right: [{ id: 'ribattrw.calm', minutes: 7, sound: 'waves', volume: 55, cicadas: false, cicadaVolume: 45, breathCues: false, breathVolume: 60, reminders: false, reminderMinutes: 25, dayStart: '10:00', dayEnd: '18:30' }] } },
   plugins: []
 });
 const c = M.configFromShell(shellCfg, 'ribattrw.calm');
 ok('reads minutes', c.minutes === 7, c);
 ok('reads sound', c.sound === 'waves');
 ok('reads volume', c.volume === 55);
+ok('reads cicadas bool false', c.cicadas === false, c);
+ok('reads cicadaVolume', c.cicadaVolume === 45, c);
+ok('reads breathCues bool false', c.breathCues === false, c);
+ok('reads breathVolume', c.breathVolume === 60, c);
 ok('reads reminders bool', c.reminders === false);
 ok('reads window', c.dayStart === '10:00' && c.dayEnd === '18:30');
 ok('reads omarchy idle thresholds', c.idleScreensaver === 120, c);
@@ -88,9 +93,11 @@ const bad = M.configFromShell('not json', 'ribattrw.calm');
 ok('bad json -> defaults', bad.minutes === 3 && bad.reminders === true, bad);
 const viaPlugins = M.configFromShell(JSON.stringify({ plugins: [{ id: 'ribattrw.calm', minutes: 11 }] }), 'ribattrw.calm');
 ok('reads plugins[] entry too', viaPlugins.minutes === 11, viaPlugins);
-const clamped = M.configFromShell(JSON.stringify({ bar: { layout: { right: [{ id: 'ribattrw.calm', minutes: 9999, dayStart: 'bogus', volume: -4 }] } } }), 'ribattrw.calm');
+const clamped = M.configFromShell(JSON.stringify({ bar: { layout: { right: [{ id: 'ribattrw.calm', minutes: 9999, dayStart: 'bogus', volume: -4, cicadaVolume: 400, breathVolume: -3 }] } } }), 'ribattrw.calm');
 ok('clamps minutes', clamped.minutes === 60, clamped);
 ok('clamps volume', clamped.volume === 0, clamped);
+ok('clamps cicadaVolume', clamped.cicadaVolume === 100, clamped);
+ok('clamps breathVolume', clamped.breathVolume === 0, clamped);
 ok('repairs bad dayStart', clamped.dayStart === '09:00', clamped);
 const other = M.configFromShell(shellCfg, 'someone.else');
 ok('ignores other plugins entries', other.minutes === 3, other);
@@ -142,9 +149,32 @@ ok('heads-up is clickable', hu.indexOf('--exec') >= 0 && hu[hu.indexOf('--exec')
 ok('heads-up has no skip button args', !/skip|dismiss|postpone/i.test(hu.join(' ')));
 
 // --- audible-by-default playback (bug: widget sessions were silent)
-ok('default volume is audible (cubic mpv volume law)', M.defaultConfig().volume === 70, M.defaultConfig().volume);
+// Volume default follows the audio-science level table: assets are
+// normalised to -36 LUFS at build time, so the default knob (mpv's cubic
+// 60*log10 law) sets the mix, not a loudness rescue.
+ok('default volume is the science-mix knob', M.defaultConfig().volume === 40, M.defaultConfig().volume);
 ok('default sound always plays', M.defaultConfig().sound === 'rain');
 ok('volume 100 must not clip the argv', M.audioCommand('rain', 100, '/u', '/s')[5] === '100');
+
+// --- audio layers: cicada ambience + breath cues (three commissioned reports)
+ok('cicadas default ON as a soft background', M.defaultConfig().cicadas === true, M.defaultConfig().cicadas);
+ok('cicadaVolume default 30', M.defaultConfig().cicadaVolume === 30, M.defaultConfig().cicadaVolume);
+ok('breathCues default ON', M.defaultConfig().breathCues === true, M.defaultConfig().breathCues);
+ok('breathVolume default 20 (pw-play is linear, not mpv-cubic)', M.defaultConfig().breathVolume === 20, M.defaultConfig().breathVolume);
+ok('cicadas is bool in schema', M.CONFIG_SCHEMA.cicadas === 'bool' && M.CONFIG_SCHEMA.breathCues === 'bool');
+ok('layer volumes are int in schema', M.CONFIG_SCHEMA.cicadaVolume === 'int' && M.CONFIG_SCHEMA.breathVolume === 'int');
+const cc = M.cueCommand('breath-in', 20, '/u', '/s');
+ok('cue argv shape', cc[0] === 'sh' && cc[3] === 'calm-cue' && cc[4] === 'breath-in' && cc[5] === '0.2' && cc[6] === '/u' && cc[7] === '/s', cc);
+ok('cue volume is linear percent/100', M.cueCommand('breath-out', 100, '/u', '/s')[5] === '1' && M.cueCommand('breath-out', 0, '/u', '/s')[5] === '0');
+ok('cue volume clamped', M.cueCommand('breath-in', 9999, '/u', '/s')[5] === '1' && M.cueCommand('breath-in', -5, '/u', '/s')[5] === '0');
+ok('cue plays via pw-play', /exec pw-play --volume="\$v"/.test(M.CUE_SCRIPT));
+ok('no network tooling in cue path', !/curl|wget|https?:/.test(M.CUE_SCRIPT));
+ok('cue user folder checked before bundled', M.CUE_SCRIPT.indexOf('"$ud/$n"') < M.CUE_SCRIPT.indexOf('"$sd/$n"'));
+ok('cue script exits silently without pw-play', /command -v pw-play/.test(M.CUE_SCRIPT));
+ok('cicada rides the mpv loop path too', /--loop-file=inf/.test(M.AUDIO_SCRIPT));
+ok('AUDIO_SCRIPT takes the client name as $5', M.AUDIO_SCRIPT.indexOf('cn="$5"') >= 0 && /--audio-client-name="\$cn"/.test(M.AUDIO_SCRIPT));
+ok('base layer default client name', M.audioCommand('rain', 40, '/u', '/s')[8] === 'omarchy-calm', M.audioCommand('rain', 40, '/u', '/s'));
+ok('cicada layer gets its own client name', M.audioCommand('cicada', 30, '/u', '/s', 'omarchy-calm-cicadas')[8] === 'omarchy-calm-cicadas');
 
 // --- keybind hint state: one-time, carried by every state rebuilder
 ok('keybindHint defaults false', M.emptyState().keybindHint === false);
@@ -184,7 +214,11 @@ ok('hint guard ignores Lua comments', hintLine.indexOf("s/--.*//") >= 0, hintLin
 ok('hint guard requires an active bind', hintLine.indexOf('o\\.bind') >= 0, hintLine);
 ok('hint line never uses single-quoted JSON payload', hintLine.indexOf("'{}'") < 0, hintLine);
 ok('README ships a matching removal line', readme.indexOf("sed -i '/ribattrw\\.calm/d' ~/.config/hypr/bindings.lua") >= 0);
-ok('README documents the default volume', readme.indexOf('volume 70') >= 0);
+ok('README documents the default volume', readme.indexOf('volume 40') >= 0);
+ok('README documents the cicadas key', readme.indexOf('omarchy bar set ribattrw.calm cicadas true') >= 0);
+ok('README documents the cicadaVolume key', readme.indexOf('omarchy bar set ribattrw.calm cicadaVolume 30') >= 0);
+ok('README documents the breathCues key', readme.indexOf('omarchy bar set ribattrw.calm breathCues true') >= 0);
+ok('README documents the breathVolume key', readme.indexOf('omarchy bar set ribattrw.calm breathVolume 20') >= 0);
 
 console.log(fails === 0 ? '\nALL TESTS PASS' : '\n' + fails + ' FAILURE(S)');
 process.exit(fails ? 1 : 0);
